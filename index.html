@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>WhatsApp · profile & bio · explore by ID</title>
+  <!-- Firebase modular SDK v10 -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@firebase/app": "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js",
+        "@firebase/auth": "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js",
+        "@firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js",
+        "@firebase/storage": "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js"
+      }
+    }
+  </script>
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background: #0b141a;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #app {
+      width: 100%;
+      max-width: 1400px;
+      height: 100vh;
+      max-height: 900px;
+      background: #111b21;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      position: relative;
+    }
+
+    /* Login overlay (first step) */
+    #login-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(11, 20, 26, 0.98);
+      backdrop-filter: blur(8px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 3000;
+    }
+    .login-card {
+      background: #1f2c33;
+      padding: 2.5rem 2rem;
+      border-radius: 32px;
+      text-align: center;
+      color: white;
+      width: 90%;
+      max-width: 380px;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.6);
+    }
+    .login-card i.fa-whatsapp {
+      font-size: 4rem;
+      color: #25d366;
+      margin-bottom: 1rem;
+    }
+    .login-card h2 {
+      font-weight: 400;
+      margin-bottom: 2rem;
+    }
+    .google-btn {
+      background: #1f2c33;
+      border: 1px solid #3c4a54;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 40px;
+      font-size: 1.1rem;
+      width: 100%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      transition: background 0.2s;
+    }
+    .google-btn:hover {
+      background: #2a3942;
+    }
+
+    /* Profile completion overlay (after Google login) */
+    #profile-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(11, 20, 26, 0.98);
+      backdrop-filter: blur(8px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2500;
+    }
+    .profile-card {
+      background: #1f2c33;
+      padding: 2rem;
+      border-radius: 32px;
+      color: white;
+      width: 90%;
+      max-width: 400px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .profile-card h3 {
+      margin-bottom: 1.5rem;
+      color: #25d366;
+    }
+    .profile-field {
+      margin-bottom: 1.2rem;
+      text-align: left;
+    }
+    .profile-field label {
+      display: block;
+      margin-bottom: 6px;
+      color: #8696a0;
+      font-size: 0.9rem;
+    }
+    .profile-field input, .profile-field textarea {
+      width: 100%;
+      background: #2a3942;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: white;
+      font-size: 1rem;
+      outline: none;
+    }
+    .profile-field textarea {
+      resize: vertical;
+      min-height: 70px;
+    }
+    .profile-pic-preview {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin: 15px 0;
+    }
+    .profile-pic-preview img {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #3c4a54;
+    }
+    .profile-pic-preview button {
+      background: #3c4a54;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 30px;
+      cursor: pointer;
+    }
+    .save-profile-btn {
+      background: #25d366;
+      border: none;
+      color: #111b21;
+      font-weight: bold;
+      padding: 14px;
+      width: 100%;
+      border-radius: 30px;
+      font-size: 1.1rem;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    /* Main chat view */
+    #chat-view {
+      display: flex;
+      height: 100%;
+      width: 100%;
+      background: #1f2c33;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 35%;
+      max-width: 400px;
+      background: #111b21;
+      border-right: 1px solid #2a3942;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .profile-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #1f2c33;
+    }
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #2a3942;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #25d366;
+      display: inline-block;
+      margin-left: 4px;
+      border: 2px solid #1f2c33;
+    }
+    .logout-btn {
+      background: none;
+      border: none;
+      color: #8696a0;
+      font-size: 1.4rem;
+      cursor: pointer;
+    }
+
+    /* tabs */
+    .tabs {
+      display: flex;
+      background: #1f2c33;
+      border-bottom: 1px solid #2a3942;
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 12px 4px;
+      color: #8696a0;
+      cursor: pointer;
+      font-weight: 500;
+      border-bottom: 3px solid transparent;
+    }
+    .tab.active {
+      color: #25d366;
+      border-bottom: 3px solid #25d366;
+    }
+
+    .tab-pane {
+      flex: 1;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+    }
+    .tab-pane.active-pane {
+      display: flex;
+    }
+
+    .user-list {
+      padding: 8px 0;
+    }
+    .user-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #1f2c33;
+    }
+    .user-item:hover, .user-item.selected {
+      background: #2a3942;
+    }
+    .avatar-small {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .user-info {
+      flex: 1;
+    }
+    .user-name {
+      color: white;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .user-bio {
+      font-size: 0.8rem;
+      color: #8696a0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .online-badge {
+      font-size: 0.7rem;
+      background: #25d366;
+      color: #111b21;
+      padding: 2px 6px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    /* Add by ID */
+    .add-by-id {
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .add-by-id input {
+      background: #2a3942;
+      border: none;
+      border-radius: 26px;
+      padding: 14px 18px;
+      color: white;
+      font-size: 1rem;
+      outline: none;
+    }
+    .add-by-id button {
+      background: #25d366;
+      border: none;
+      border-radius: 26px;
+      padding: 14px;
+      color: #111b21;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* Chat panel */
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0b141a;
+    }
+    .chat-header {
+      padding: 16px 20px;
+      background: #1f2c33;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: white;
+    }
+    .avatar-medium {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .chat-header-info h3 {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chat-bio {
+      font-size: 0.8rem;
+      color: #8696a0;
+    }
+    .typing-indicator {
+      font-size: 0.85rem;
+      color: #00a884;
+      font-style: italic;
+    }
+
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #0b141a;
+    }
+
+    .message-row {
+      display: flex;
+      margin-bottom: 2px;
+    }
+    .message-row.me {
+      justify-content: flex-end;
+    }
+    .message-bubble {
+      max-width: 70%;
+      padding: 10px 14px;
+      border-radius: 22px;
+      background: #1f2c33;
+      color: white;
+      word-wrap: break-word;
+    }
+    .message-row.me .message-bubble {
+      background: #005c4b;
+      border-bottom-right-radius: 6px;
+    }
+    .message-row.other .message-bubble {
+      background: #1f2c33;
+      border-bottom-left-radius: 6px;
+    }
+    .message-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.7rem;
+      color: #8696a0;
+      margin-top: 4px;
+      justify-content: flex-end;
+    }
+    .message-image {
+      max-width: 220px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .message-composer {
+      background: #1f2c33;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .composer-input {
+      flex: 1;
+      background: #2a3942;
+      border: none;
+      border-radius: 26px;
+      padding: 12px 18px;
+      color: white;
+      font-size: 1rem;
+      outline: none;
+    }
+    .attach-btn, .send-btn {
+      background: none;
+      border: none;
+      color: #8696a0;
+      font-size: 1.6rem;
+      cursor: pointer;
+    }
+    .send-btn {
+      color: #00a884;
+    }
+    .attach-btn input {
+      display: none;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- LOGIN OVERLAY (step 1) -->
+  <div id="login-overlay">
+    <div class="login-card">
+      <i class="fab fa-whatsapp"></i>
+      <h2>WhatsApp · Profile</h2>
+      <button class="google-btn" id="googleLoginBtn">
+        <i class="fab fa-google"></i> Sign in with Google
+      </button>
+    </div>
+  </div>
+
+  <!-- PROFILE COMPLETION OVERLAY (step 2) -->
+  <div id="profile-overlay">
+    <div class="profile-card">
+      <h3><i class="fas fa-user-circle"></i> Complete your profile</h3>
+      <div class="profile-field">
+        <label>Display name *</label>
+        <input type="text" id="profileName" placeholder="How others see you">
+      </div>
+      <div class="profile-field">
+        <label>Date of birth</label>
+        <input type="date" id="profileDob">
+      </div>
+      <div class="profile-field">
+        <label>Bio</label>
+        <textarea id="profileBio" placeholder="Tell something about yourself..."></textarea>
+      </div>
+      <div class="profile-pic-preview">
+        <img id="profilePicPreview" src="https://via.placeholder.com/70" alt="preview">
+        <button id="changeProfilePicBtn"><i class="fas fa-camera"></i> Change</button>
+        <input type="file" id="profilePicUpload" accept="image/*" style="display: none;">
+      </div>
+      <button class="save-profile-btn" id="saveProfileBtn">Save & Continue</button>
+    </div>
+  </div>
+
+  <!-- MAIN CHAT VIEW -->
+  <div id="chat-view">
+    <!-- sidebar -->
+    <aside class="sidebar">
+      <div class="profile-header">
+        <div class="user-profile" id="myProfileBtn">
+          <img class="avatar" id="myAvatar" src="https://via.placeholder.com/44" alt="avatar">
+          <span id="myName">Loading...</span>
+          <span class="status-dot"></span>
+        </div>
+        <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i></button>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="chats">Chats</div>
+        <div class="tab" data-tab="explore">Explore</div>
+        <div class="tab" data-tab="add">Add by ID</div>
+      </div>
+
+      <!-- Chats tab -->
+      <div class="tab-pane active-pane" id="pane-chats">
+        <div class="user-list" id="chatUsersList"></div>
+      </div>
+
+      <!-- Explore tab -->
+      <div class="tab-pane" id="pane-explore">
+        <div class="user-list" id="exploreUsersList"></div>
+      </div>
+
+      <!-- Add by ID -->
+      <div class="tab-pane" id="pane-add">
+        <div class="add-by-id">
+          <input type="text" id="targetUserId" placeholder="Enter email or UID">
+          <button id="startChatByIdBtn">Start Chat</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- right chat panel -->
+    <main class="chat-panel">
+      <div class="chat-header">
+        <img class="avatar-medium" id="chatPartnerAvatar" src="https://via.placeholder.com/48" alt="">
+        <div class="chat-header-info">
+          <h3 id="chatPartnerName">Select a user</h3>
+          <div id="chatPartnerBio" class="chat-bio"></div>
+          <div id="typingIndicator" class="typing-indicator"></div>
+        </div>
+      </div>
+
+      <div class="messages-area" id="messagesArea"></div>
+
+      <div class="message-composer">
+        <label class="attach-btn">
+          <i class="fas fa-paperclip"></i>
+          <input type="file" id="imageUpload" accept="image/*">
+        </label>
+        <input type="text" class="composer-input" id="messageInput" placeholder="Type a message">
+        <button class="send-btn" id="sendMessageBtn"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script type="module">
+  // ---------- Firebase Imports ----------
+  import { initializeApp } from '@firebase/app';
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from '@firebase/auth';
+  import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, addDoc, serverTimestamp, updateDoc, orderBy, limit, getDocs } from '@firebase/firestore';
+  import { getStorage, ref, uploadBytes, getDownloadURL } from '@firebase/storage';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCCloNQDHI8-fm7Z-5aDUZxH7DfPp-q8-0",
+    authDomain: "globalchatapp-d5b72.firebaseapp.com",
+    projectId: "globalchatapp-d5b72",
+    storageBucket: "globalchatapp-d5b72.firebasestorage.app",
+    messagingSenderId: "14224642973",
+    appId: "1:14224642973:web:6aafc3f1082c4dd8af1574"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+  const provider = new GoogleAuthProvider();
+
+  // DOM elements
+  const loginOverlay = document.getElementById('login-overlay');
+  const profileOverlay = document.getElementById('profile-overlay');
+  const chatView = document.getElementById('chat-view');
+  const googleLoginBtn = document.getElementById('googleLoginBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const myAvatar = document.getElementById('myAvatar');
+  const myName = document.getElementById('myName');
+  const messagesArea = document.getElementById('messagesArea');
+  const messageInput = document.getElementById('messageInput');
+  const sendBtn = document.getElementById('sendMessageBtn');
+  const imageUpload = document.getElementById('imageUpload');
+  const chatPartnerName = document.getElementById('chatPartnerName');
+  const chatPartnerAvatar = document.getElementById('chatPartnerAvatar');
+  const chatPartnerBio = document.getElementById('chatPartnerBio');
+  const typingIndicator = document.getElementById('typingIndicator');
+
+  // profile overlay fields
+  const profileName = document.getElementById('profileName');
+  const profileDob = document.getElementById('profileDob');
+  const profileBio = document.getElementById('profileBio');
+  const profilePicPreview = document.getElementById('profilePicPreview');
+  const changeProfilePicBtn = document.getElementById('changeProfilePicBtn');
+  const profilePicUpload = document.getElementById('profilePicUpload');
+  const saveProfileBtn = document.getElementById('saveProfileBtn');
+  const myProfileBtn = document.getElementById('myProfileBtn');
+
+  // tabs
+  const paneChats = document.getElementById('pane-chats');
+  const paneExplore = document.getElementById('pane-explore');
+  const paneAdd = document.getElementById('pane-add');
+  const tabs = document.querySelectorAll('.tab');
+  const chatUsersList = document.getElementById('chatUsersList');
+  const exploreUsersList = document.getElementById('exploreUsersList');
+  const targetUserIdInput = document.getElementById('targetUserId');
+  const startChatByIdBtn = document.getElementById('startChatByIdBtn');
+
+  // state
+  let currentUser = null;
+  let currentUserDoc = null;        // full profile from firestore
+  let selectedUserId = null;
+  let users = {};                   // uid -> userData
+  let myChats = new Set();
+  let unsubscribeMessages = null;
+  let unsubscribeTyping = null;
+  let typingTimeout = null;
+  let newProfilePicFile = null;
+
+  // ---------- Helper: set online ----------
+  async function setOnlineStatus(uid, status) {
+    if (!uid) return;
+    try { await updateDoc(doc(db, 'users', uid), { online: status }); } catch (e) {}
+  }
+
+  // ---------- Load my full profile ----------
+  async function loadMyProfile(uid) {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists()) {
+      currentUserDoc = snap.data();
+      myAvatar.src = currentUserDoc.photoURL || 'https://via.placeholder.com/44';
+      myName.innerText = currentUserDoc.name || 'Me';
+    }
+  }
+
+  // ---------- Show profile overlay if profile incomplete ----------
+  async function checkProfileCompletion(user) {
+    const userRef = doc(db, 'users', user.uid);
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      // first login: create minimal doc, then show overlay
+      const minimal = {
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName || '',
+        photoURL: user.photoURL || 'https://via.placeholder.com/100',
+        dob: '',
+        bio: '',
+        online: true,
+        createdAt: serverTimestamp()
+      };
+      await setDoc(userRef, minimal);
+      currentUserDoc = minimal;
+      profileName.value = minimal.name;
+      profilePicPreview.src = minimal.photoURL;
+      profileOverlay.style.display = 'flex';
+    } else {
+      const data = snap.data();
+      // if any crucial field missing? we consider name and bio optional, but if user wants to edit, they can click profile.
+      // For first time, if name not set or dob missing, we can still show overlay? we'll show only if no bio (as example)
+      if (!data.bio && !data.dob) {  // simplistic: if bio empty, ask to complete
+        currentUserDoc = data;
+        profileName.value = data.name || '';
+        profileDob.value = data.dob || '';
+        profileBio.value = data.bio || '';
+        profilePicPreview.src = data.photoURL || 'https://via.placeholder.com/100';
+        profileOverlay.style.display = 'flex';
+      } else {
+        currentUserDoc = data;
+        profileOverlay.style.display = 'none';
+      }
+    }
+    // update sidebar
+    myAvatar.src = currentUserDoc?.photoURL || 'https://via.placeholder.com/44';
+    myName.innerText = currentUserDoc?.name || 'Me';
+  }
+
+  // ---------- Save profile from overlay ----------
+  async function saveProfile() {
+    if (!currentUser) return;
+    const name = profileName.value.trim();
+    if (!name) { alert('Name is required'); return; }
+    let photoURL = currentUserDoc?.photoURL || 'https://via.placeholder.com/100';
+    
+    // upload new profile pic if selected
+    if (newProfilePicFile) {
+      const filePath = `profile_pics/${currentUser.uid}_${Date.now()}`;
+      const storageRef = ref(storage, filePath);
+      await uploadBytes(storageRef, newProfilePicFile);
+      photoURL = await getDownloadURL(storageRef);
+    }
+
+    const updates = {
+      name: name,
+      dob: profileDob.value || '',
+      bio: profileBio.value || '',
+      photoURL: photoURL,
+      updatedAt: serverTimestamp()
+    };
+    await updateDoc(doc(db, 'users', currentUser.uid), updates);
+    
+    // refresh local
+    currentUserDoc = { ...currentUserDoc, ...updates };
+    myAvatar.src = photoURL;
+    myName.innerText = name;
+    profileOverlay.style.display = 'none';
+    newProfilePicFile = null;
+  }
+
+  // ---------- Listen all users ----------
+  function subscribeAllUsers() {
+    const q = query(collection(db, 'users'));
+    return onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach(change => {
+        const data = change.doc.data();
+        users[data.uid] = data;
+      });
+      snapshot.docs.forEach(d => { users[d.id] = d.data(); });
+      renderExploreList();
+      renderChatsList();
+      // if selected user, update header
+      if (selectedUserId && users[selectedUserId]) {
+        updateChatHeader(selectedUserId);
+      }
+    });
+  }
+
+  function updateChatHeader(uid) {
+    const u = users[uid];
+    if (u) {
+      chatPartnerName.innerText = u.name || 'User';
+      chatPartnerAvatar.src = u.photoURL || 'https://via.placeholder.com/48';
+      chatPartnerBio.innerText = u.bio ? `“${u.bio}”` : '';
+    }
+  }
+
+  // ---------- Listen to my messages for chat list ----------
+  function subscribeMyMessages() {
+    if (!currentUser) return;
+    const q = query(collection(db, 'messages'), where('participants', 'array-contains', currentUser.uid));
+    return onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach(change => {
+        const data = change.doc.data();
+        const other = data.participants?.find(p => p !== currentUser.uid);
+        if (other) myChats.add(other);
+      });
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const other = data.participants?.find(p => p !== currentUser.uid);
+        if (other) myChats.add(other);
+      });
+      renderChatsList();
+    });
+  }
+
+  function renderExploreList() {
+    if (!currentUser) return;
+    const others = Object.values(users).filter(u => u.uid !== currentUser.uid);
+    let html = '';
+    others.forEach(u => {
+      html += `
+        <div class="user-item explore-item" data-uid="${u.uid}">
+          <img class="avatar-small" src="${u.photoURL || 'https://via.placeholder.com/42'}" alt="avatar">
+          <div class="user-info">
+            <div class="user-name">
+              ${u.name || 'No name'} ${u.online ? '<span class="online-badge">online</span>' : ''}
+            </div>
+            <div class="user-bio">${u.bio ? u.bio.substring(0,30) : '☕ no bio'}</div>
+          </div>
+        </div>
+      `;
+    });
+    exploreUsersList.innerHTML = html;
+    document.querySelectorAll('.explore-item').forEach(el => {
+      el.addEventListener('click', () => selectUser(el.dataset.uid));
+    });
+  }
+
+  function renderChatsList() {
+    if (!currentUser) return;
+    const chatUids = Array.from(myChats);
+    const chatUsers = chatUids.map(uid => users[uid]).filter(u => u && u.uid !== currentUser.uid);
+    let html = '';
+    chatUsers.forEach(u => {
+      html += `
+        <div class="user-item chat-item" data-uid="${u.uid}">
+          <img class="avatar-small" src="${u.photoURL || 'https://via.placeholder.com/42'}" alt="avatar">
+          <div class="user-info">
+            <div class="user-name">
+              ${u.name || 'No name'} ${u.online ? '<span class="online-badge">online</span>' : ''}
+            </div>
+            <div class="user-bio">${u.bio ? u.bio.substring(0,25) : '...'}</div>
+          </div>
+        </div>
+      `;
+    });
+    chatUsersList.innerHTML = html;
+    document.querySelectorAll('.chat-item').forEach(el => {
+      el.addEventListener('click', () => selectUser(el.dataset.uid));
+    });
+  }
+
+  async function selectUser(uid) {
+    if (!currentUser || !uid || uid === selectedUserId) return;
+    selectedUserId = uid;
+    updateChatHeader(uid);
+
+    if (unsubscribeMessages) unsubscribeMessages();
+    if (unsubscribeTyping) unsubscribeTyping();
+
+    const typingDocRef = doc(db, 'typing', `${currentUser.uid}_${uid}`);
+    unsubscribeTyping = onSnapshot(typingDocRef, (snap) => {
+      typingIndicator.innerText = snap.exists() && snap.data().isTyping ? 'typing...' : '';
+    });
+
+    const messagesQuery = query(
+      collection(db, 'messages'),
+      where('participants', 'array-contains', currentUser.uid),
+      orderBy('timestamp', 'asc')
+    );
+    unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if ((data.sender === currentUser.uid && data.receiver === uid) ||
+            (data.sender === uid && data.receiver === currentUser.uid)) {
+          msgs.push({ id: doc.id, ...data });
+        }
+      });
+      renderMessages(msgs);
+    });
+  }
+
+  function renderMessages(messages) {
+    let html = '';
+    messages.forEach(msg => {
+      const isMe = msg.sender === currentUser.uid;
+      const time = msg.timestamp?.toDate().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) || '';
+      if (msg.type === 'image') {
+        html += `<div class="message-row ${isMe ? 'me' : 'other'}"><div class="message-bubble"><img src="${msg.imageUrl}" class="message-image" onclick="window.open(this.src)"/><div class="message-meta">${time}</div></div></div>`;
+      } else {
+        html += `<div class="message-row ${isMe ? 'me' : 'other'}"><div class="message-bubble">${msg.text || ''}<div class="message-meta">${time}</div></div></div>`;
+      }
+    });
+    messagesArea.innerHTML = html;
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+  }
+
+  async function sendTextMessage() {
+    const text = messageInput.value.trim();
+    if (!text || !selectedUserId) return;
+    messageInput.value = '';
+    await addDoc(collection(db, 'messages'), {
+      sender: currentUser.uid,
+      receiver: selectedUserId,
+      participants: [currentUser.uid, selectedUserId],
+      text, type: 'text', timestamp: serverTimestamp()
+    });
+    myChats.add(selectedUserId);
+  }
+
+  async function sendImageMessage(file) {
+    if (!file || !selectedUserId) return;
+    const path = `chat_images/${currentUser.uid}_${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    await addDoc(collection(db, 'messages'), {
+      sender: currentUser.uid, receiver: selectedUserId,
+      participants: [currentUser.uid, selectedUserId],
+      imageUrl: url, type: 'image', timestamp: serverTimestamp()
+    });
+    myChats.add(selectedUserId);
+  }
+
+  async function setTyping(typing) {
+    if (!currentUser || !selectedUserId) return;
+    const ref = doc(db, 'typing', `${currentUser.uid}_${selectedUserId}`);
+    await setDoc(ref, { isTyping: typing }, { merge: true });
+    if (typing) {
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => setTyping(false), 2500);
+    }
+  }
+
+  async function startChatById() {
+    const id = targetUserIdInput.value.trim();
+    if (!id) return;
+    let target = users[id];
+    if (!target) {
+      const q = query(collection(db, 'users'), where('email', '==', id), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) target = snap.docs[0].data();
+    }
+    if (target && target.uid !== currentUser.uid) {
+      selectUser(target.uid);
+      targetUserIdInput.value = '';
+    } else alert('User not found');
+  }
+
+  // ---------- Auth observer ----------
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      currentUser = user;
+      await checkProfileCompletion(user);
+      await loadMyProfile(user.uid);
+      loginOverlay.style.display = 'none';
+      chatView.style.opacity = '1';
+
+      subscribeAllUsers();
+      subscribeMyMessages();
+
+      window.addEventListener('beforeunload', () => setOnlineStatus(user.uid, false));
+      setOnlineStatus(user.uid, true);
+    } else {
+      if (currentUser) setOnlineStatus(currentUser.uid, false);
+      currentUser = null;
+      loginOverlay.style.display = 'flex';
+      profileOverlay.style.display = 'none';
+      chatView.style.opacity = '0';
+      if (unsubscribeMessages) unsubscribeMessages();
+      if (unsubscribeTyping) unsubscribeTyping();
+    }
+  });
+
+  // Event listeners
+  googleLoginBtn.addEventListener('click', () => signInWithPopup(auth, provider));
+  logoutBtn.addEventListener('click', () => signOut(auth));
+
+  sendBtn.addEventListener('click', sendTextMessage);
+  messageInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendTextMessage(); });
+  messageInput.addEventListener('input', () => setTyping(true));
+
+  imageUpload.addEventListener('change', e => {
+    if (e.target.files[0]) sendImageMessage(e.target.files[0]);
+    imageUpload.value = '';
+  });
+
+  // profile pic change
+  changeProfilePicBtn.addEventListener('click', () => profilePicUpload.click());
+  profilePicUpload.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) {
+      newProfilePicFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => { profilePicPreview.src = e.target.result; };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  saveProfileBtn.addEventListener('click', saveProfile);
+
+  // tabs
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      tabs.forEach(tab => tab.classList.remove('active'));
+      t.classList.add('active');
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active-pane'));
+      document.getElementById(`pane-${t.dataset.tab}`).classList.add('active-pane');
+    });
+  });
+
+  startChatByIdBtn.addEventListener('click', startChatById);
+  targetUserIdInput.addEventListener('keypress', e => { if (e.key === 'Enter') startChatById(); });
+
+  // myProfileBtn click -> show overlay to edit
+  myProfileBtn.addEventListener('click', async () => {
+    if (currentUserDoc) {
+      profileName.value = currentUserDoc.name || '';
+      profileDob.value = currentUserDoc.dob || '';
+      profileBio.value = currentUserDoc.bio || '';
+      profilePicPreview.src = currentUserDoc.photoURL || 'https://via.placeholder.com/100';
+      profileOverlay.style.display = 'flex';
+    }
+  });
+</script>
+</body>
+</html>
